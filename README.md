@@ -24,8 +24,8 @@ Assemble Complete Message: A loop accumulates the received bytes (temp = sock.re
 
 Decode and Split Data: The received data is decoded from bytes and then split into a list using '-'
 
-Process Data: Individual components (x, y, yourturn, and playing) are extracted and used to update the game state:
-The grid object is updated with the opponent's move at the specified coordinates (grid.set_cell_value(x, y, 'X')). This happens only if that square on the grid is empty
+Process Data: Individual components (x, y, yourturn, and playing) are extracted and are used to update the game:
+The grid is updated with the opponent's move at the specified coordinates (grid.set_cell_value(x, y, 'X')). This happens only if that square on the grid is empty
 
 The turn variable is set to True if it's the client's turn based on the yourturn flag.
 
