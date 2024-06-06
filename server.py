@@ -5,30 +5,35 @@ import socket
 import os
 import logging
 
-# Configure logging
+# Configure logging to output debug information
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Initialize Pygame
+# Initialize Pygame and set up the display window
 pygame.init()
 os.environ['SDL_VIDEO_WINDOW_POS'] = '200,100'
 surface = pygame.display.set_mode((600, 600))
 pygame.display.set_caption('Tic Tac Toe Server')
 
-# Networking setup
+# Networking setup: Define the host and port for the server
 HOST = '127.0.0.1'
 PORT = 65432
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.bind((HOST, PORT))
 sock.listen(1)
 
+# Variables to manage the connection state
 connection_established = False
 conn, addr = None, None
 
-# Initialize the grid
+# Initialize the game grid
 grid = Grid()
 
 
 def receive_data():
+    """
+    Function to receive data from the client. It continuously listens for
+    data, processes it via a communications protocol, and updates the game accordingly.
+    """
     global turn
     while True:
         try:
@@ -57,6 +62,10 @@ def receive_data():
 
 
 def waiting_for_connection():
+    """
+    Function to wait for a client to connect. Once a client connects,
+    it starts the receive_data function in a new thread.
+    """
     global connection_established, conn, addr
     try:
         conn, addr = sock.accept()  # wait for a connection, it is a blocking method
@@ -68,12 +77,19 @@ def waiting_for_connection():
 
 
 def create_thread(target):
+    """
+    Function to create and start a new thread for the given target function.
+    """
     thread = threading.Thread(target=target)
     thread.daemon = True
     thread.start()
 
 
 def main():
+    """
+    Main function to run the game server. It initializes the connection,
+    handles game events, and updates the display.
+    """
     create_thread(waiting_for_connection)
 
     running = True
