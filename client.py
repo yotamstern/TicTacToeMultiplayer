@@ -1,98 +1,165 @@
 import pygame
-from grid import Grid
 import os
-import threading
-import socket
 import logging
+
+# Load images for X and O
+letterX = pygame.image.load(os.path.join('res', 'x.webp'))
+letterO = pygame.image.load(os.path.join('res', 'elono.png'))
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Set up the display position and size
-os.environ['SDL_VIDEO_WINDOW_POS'] = '850,100'
-surface = pygame.display.set_mode((600, 600))
-pygame.display.set_caption('Tic-tac-toe')
 
-# Creating a TCP socket for the client
-HOST = '127.0.0.1'
-PORT = 65432
+class Grid:
+    def __init__(self):
+        """
+        Initialize the grid for the Tic Tac Toe game.
+        Sets up the grid lines, grid data structure, and search directions.
+        """
+        # Define the grid lines for the board
+        self.grid_lines = [((0, 200), (600, 200)),  # first horizontal line
+                           ((0, 400), (600, 400)),  # second horizontal line
+                           ((200, 0), (200, 600)),  # first vertical line
+                           ((400, 0), (400, 600))]  # second vertical line
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.connect((HOST, PORT))
+        # Initialize the grid data structure
+        self.grid = [[0 for x in range(3)] for y in range(3)]
+        # Search directions for checking win conditions
+        self.search_dirs = [(0, -1), (-1, -1), (-1, 0), (-1, 1),
+                            (0, 1), (1, 1), (1, 0), (1, -1)]
+        self.game_over = False
 
+    def draw(self, surface):
+        """
+        Draw the grid and the X/O symbols on the surface.
 
-# Thread function to receive data from the server
-def receive_data():
-    global turn
-    while True:
-        data = sock.recv(1)
-        while True:
-            temp = sock.recv(1)
-            if temp == '!'.encode():
-                break
-            data += temp
+        Args:
+            surface: The surface to draw on.
+        """
+        # Draw the grid lines
+        for line in self.grid_lines:
+            pygame.draw.line(surface, (200, 200, 200), line[0], line[1], 2)
 
-        data = data.decode()
-        logging.debug(f'Received data: {data}')
-        data = data.split('-')
+        # Draw the X and O symbols
+        for y in range(len(self.grid)):
+            for x in range(len(self.grid[y])):
+                if self.get_cell_value(x, y) == "X":
+                    surface.blit(letterX, (x * 200, y * 200))
+                elif self.get_cell_value(x, y) == "O":
+                    surface.blit(letterO, (x * 200, y * 200))
 
-        x, y = int(data[0]), int(data[1])
+    def get_cell_value(self, x, y):
+        """
+        Returns the value of the cell at x,y.
 
-        if data[2] == 'yourturn':
-            turn = True
-        if data[3] == 'False':
-            grid.game_over = True
-        if grid.get_cell_value(x, y) == 0:
-            grid.set_cell_value(x, y, 'X')
+        Args:
+            x : The x coordinate of the cell.
+            y : The y coordinate of the cell.
 
+        Returns:
+            int: The value of the cell.
+        """
+        return self.grid[y][x]
 
-# Function to create and start a thread
-def create_thread(target):
-    thread = threading.Thread(target=target)
-    thread.daemon = True
-    thread.start()
+    def set_cell_value(self, x, y, value):
+        """
+        Sets the value of the cell at x,y to value.
 
+        Args:
+            x : The x coordinate of the cell.
+            y : The y coordinate of the cell.
+            value : The value to set (x or o).
+        """
+        logging.debug(f'Setting cell ({x}, {y}) to {value}')
+        self.grid[y][x] = value
 
-# Run the blocking functions in a separate thread
-create_thread(receive_data)
+    def get_mouse(self, x, y, player):
+        """
+        Updates the grid based on the player's mouse click.
 
-# Initialize game state
-grid = Grid()
-running = True
-player = "O"
-turn = False
-playing = 'True'
+        Args:
+            x (int): The x-coordinate of the cell.
+            y (int): The y-coordinate of the cell.
+            player (str): The current player ('X' or 'O').
+        """
+        if self.get_cell_value(x, y) == 0:
+            self.set_cell_value(x, y, player)
+            self.check_grid(x, y, player)
 
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        if event.type == pygame.MOUSEBUTTONDOWN and not grid.game_over:
-            if pygame.mouse.get_pressed()[0]:
-                if turn and not grid.game_over:
-                    pos = pygame.mouse.get_pos()
-                    cellX, cellY = pos[0] // 200, pos[1] // 200
-                    logging.debug(f'Mouse click at: {pos}, Cell: ({cellX}, {cellY})')
+    def is_within_bounds(self, x, y):
+        """
+        Checks if x,y is inside the grid.
 
-                    grid.get_mouse(cellX, cellY, player)
-                    if grid.game_over:
-                        playing = 'False'
+        Args:
+            x (int): The x-coordinate.
+            y (int): The y-coordinate.
 
-                    send_data = '{}-{}-{}-{}'.format(cellX, cellY, 'yourturn', playing).encode()
-                    send_data += '!'.encode()
-                    logging.debug(f'Sending data: {send_data}')
+        Returns:
+            bool: True if within bounds, False otherwise.
+        """
+        return 0 <= x < 3 and 0 <= y < 3
 
-                    sock.send(send_data)
-                    turn = False
+    def check_grid(self, x, y, player):
+        """
+        Checks the grid for a win condition starting from (x, y) for the player.
 
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE and grid.game_over:
-                grid.clear_grid()
-                grid.game_over = False
-                playing = 'True'
-            elif event.key == pygame.K_ESCAPE:
-                running = False
+        Args:
+            x: The x coordinate of the cell.
+            y : The y coordinate of the cell.
+            player: The current player (x or o).
+        """
+        count = 1
+        for index, (dirx, diry) in enumerate(self.search_dirs):
+            if self.is_within_bounds(x + dirx, y + diry) and self.get_cell_value(x + dirx, y + diry) == player:
+                count += 1
+                xx = x + dirx
+                yy = y + diry
+                if self.is_within_bounds(xx + dirx, yy + diry) and self.get_cell_value(xx + dirx, yy + diry) == player:
+                    count += 1
+                    if count == 3:
+                        break
+                if count < 3:
+                    new_dir = self.search_dirs[(index + 4) % 8]
+                    if self.is_within_bounds(x + new_dir[0], y + new_dir[1]) \
+                            and self.get_cell_value(x + new_dir[0], y + new_dir[1]) == player:
+                        count += 1
+                        if count == 3:
+                            break
+                    else:
+                        count = 1
 
-    surface.fill((255, 255, 255))
-    grid.draw(surface)
-    pygame.display.flip()
+        if count == 3:
+            logging.info(f'{player} wins!')
+            self.game_over = True
+        else:
+            self.game_over = self.is_grid_full()
+
+    def is_grid_full(self):
+        """
+        Check if the grid is full.
+
+        Returns:
+            bool: True if the grid is full, False otherwise.
+        """
+        for row in self.grid:
+            for value in row:
+                if value == 0:
+                    return False
+        logging.info('Grid is full, game over!')
+        return True
+
+    def clear_grid(self):
+        """
+        Clear the grid.
+        """
+        logging.info('Clearing the grid')
+        for y in range(len(self.grid)):
+            for x in range(len(self.grid[y])):
+                self.set_cell_value(x, y, 0)
+
+    def print_grid(self):
+        """
+        Print the grid to the console.
+        """
+        for row in self.grid:
+            logging.debug(row)
